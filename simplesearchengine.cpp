@@ -6,6 +6,39 @@
 #include <algorithm>
 
 using namespace std;
+bool skipToken(const string& token) {
+    // Check for URL indicators
+    if (token.find("http://") != string::npos || token.find("https://") != string::npos || token.find("www.") != string::npos) {
+        return true;
+    }
+    // Check for unwanted characters
+    if (token.find("<") != string::npos || token.find('>') != string::npos || token.find('#') != string::npos) {
+        return true;
+    }
+
+    bool hasDigit = false;
+	bool hasAlpha = false;
+    
+    for (char c : token) {
+        if (isdigit(c)) {
+            hasDigit = true;
+        }
+        if (isalpha(c)) {
+            hasAlpha = true;
+        }
+    }
+    // Skip tokens that contain digits but no letters
+    if (hasDigit && !hasAlpha) {
+        return true;
+	}
+
+    // skip mixed like 26th
+    if (hasDigit && hasAlpha) {
+        return true;
+	}
+
+	return false;
+}
 
 string cleanWord(const string& raw) {
     string cleaned;
@@ -14,7 +47,7 @@ string cleanWord(const string& raw) {
         char c = raw[i];
 
         if (isalpha(c)) {
-            cleaned += c;   // preserve case (for now)
+            cleaned += tolower(c);   // turn cleaned word to lowercase
         }
         else if (c == '-' && i > 0 && i < raw.length() - 1 && isalpha(raw[i - 1]) && isalpha(raw[i + 1])) {
             cleaned += c;
@@ -42,14 +75,10 @@ int main() {
 
     // Read word by word
     while (inpfile >> word) {
-		// first, reject URL indicators. Used npos to check if the substring is not found in the word. if it is found, npos will return a valid index, which means we should skip this word.
-        if (word.find("http://") != string::npos || word.find("https://") != string::npos || word.find("www.") != string::npos) {
-            continue;
+		if (skipToken(word)) {
+            continue; // skip this token and move to the next one
 		}
-        // there are other word slops that must be detected and wiped like "ltonlyincludegtltonlyincludegt"
-        if (word.find("<") != string::npos || word.find('>') != string::npos || word.find('#') != string::npos) {
-            continue;
-		}
+        
         // now print out cleaned words
         string cleaned = cleanWord(word);
         if (!cleaned.empty()) {
@@ -59,6 +88,9 @@ int main() {
 
     // Sort words alphabetically
     sort(dictionary.begin(), dictionary.end());
+
+    // remove duplicates
+    dictionary.erase(unique(dictionary.begin(), dictionary.end()), dictionary.end());
 
     // Write sorted words to output file
     for (const string& w : dictionary) {
@@ -70,3 +102,4 @@ int main() {
 
     return 0;
 }
+   
