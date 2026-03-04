@@ -4,6 +4,8 @@
 #include <vector>
 #include <cctype>
 #include <algorithm>
+#include <unordered_map>
+#include <unordered_set>
 
 using namespace std;
 bool skipToken(const string& token) {
@@ -58,47 +60,88 @@ string cleanWord(const string& raw) {
 
 int main() {
     ifstream inpfile("samplewiki.txt");
-    ofstream outpfile("dictionary.txt");
+    ofstream dictfile("dictionary.txt");
+    ofstream unifile("unigrams.txt");
 
-	// first, make sure that the files were opened successfully
+
+    // first, make sure that the files were opened successfully
     if (!inpfile.is_open()) {
         cerr << "Error: Could not open input file!" << endl;
-        throw runtime_error("Input file failed to open");
+        return 1;
     }
-    if (!outpfile.is_open()) {
-        cerr << "Error: Could not open output file!" << endl;
-        throw runtime_error("Output file failed to open");
+    if (!dictfile.is_open() || !unifile.is_open()) {
+        cerr << "Error: Could not open output files!" << endl;
+        return 1;
     }
 
-    vector<string> dictionary;
+    unordered_map<string, int> globalTF;
+    unordered_map<string, int> documentFrequency;
+    unordered_set<string> wordsInCurrentDoc;
     string word;
 
     // Read word by word
     while (inpfile >> word) {
-		if (skipToken(word)) {
-            continue; // skip this token and move to the next one
-		}
-        
+        if (word.find("https://") != string::npos || word.find("http://") != string::npos || word.find("www.") != string::npos) {
+            for (const auto& w : wordsInCurrentDoc) {   // update doc freq for each unique word in the current doc
+                documentFrequency[w]++;
+            }
+            wordsInCurrentDoc.clear();  // clear set for the next doc
+            continue;
+        }
+        if (skipToken(word)) {
+            continue;
+        }
         // now print out cleaned words
         string cleaned = cleanWord(word);
-        if (!cleaned.empty()) {
-            dictionary.push_back(cleaned);
+        if (cleaned.empty()) {
+            continue;
         }
+        globalTF[cleaned]++;  // count term freq for the cleaned word
+        wordsInCurrentDoc.insert(cleaned);  //track unique words in the current doc
     }
 
-    // Sort words alphabetically
+    for (const auto& word : wordsInCurrentDoc) {  // update doc freq for the LAST doc 
+        documentFrequency[word]++;
+    }
+
+    vector<string> dictionary;
+    for (const auto& pair : globalTF) {      //pair.first is the word, and ill use pair.second as the freq
+        dictionary.push_back(pair.first);
+    }
     sort(dictionary.begin(), dictionary.end());
 
-    // remove duplicates
-    dictionary.erase(unique(dictionary.begin(), dictionary.end()), dictionary.end());
+    for (const auto& word : dictionary) {
+        dictfile << word << endl;
+    }
 
-    // Write sorted words to output file
-    for (const string& w : dictionary) {
-        outpfile << w << endl;
+    unordered_map<string, int> wordCode;   // word codes
+    for (int i = 0; i < dictionary.size(); i++) {
+        wordCode[dictionary[i]] = i;
+    }
+
+    vector<pair<string, int>> words;
+
+    for (const auto& pair : globalTF) {
+        words.push_back({ pair.first, pair.second });
+    }
+
+    sort(words.begin(), words.end(), [](const pair<string, int>& a, const pair<string, int>& b) {
+        return a.second > b.second;     // GTF is decreasing
+        }   
+    );
+
+    for (const auto& pair : words) {
+        string word = pair.first;
+        int gtf = pair.second;
+        int df = documentFrequency[word];
+        int code = wordCode[word];
+
+        unifile << code << " " << word << " " << df << " " << gtf << endl;
     }
 
     inpfile.close();
-    outpfile.close();
+    dictfile.close();
+    unifile.close();
 
     return 0;
 }
